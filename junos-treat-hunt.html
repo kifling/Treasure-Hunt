@@ -1,0 +1,1946 @@
+<!--
+  JUNO'S TREAT HUNT
+  =================
+  HOW TO PLAY:
+  1. Double-click this file — it opens in your web browser automatically
+  2. Click objects in the scene to examine them
+  3. Find all 6 hidden treats to win!
+
+  CONTROLS:
+  - Left-click: Examine or interact with an object
+  - Left-click inventory item: Select it (cursor changes)
+  - Right-click OR click selected item again: Deselect
+  - When an item is selected, click a world object to USE the item on it
+
+  TIPS:
+  - Read Juno's narration carefully — she leaves clues
+  - Try clicking everything, especially things that seem ordinary
+  - Two rooms: Dining Room and Living Room (click the doorway to switch)
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Juno's Treat Hunt</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #111;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: monospace;
+    overflow: hidden;
+  }
+
+  /* =====================================================
+     OUTER WRAPPER — flex row: left sidebar | canvas | right sidebar
+     Total width: 200 + 880 + 200 = 1280px
+  ===================================================== */
+  #game-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    width: 1280px;
+    height: 495px;
+    align-items: stretch;
+  }
+
+  /* The main canvas — internal resolution stays 1280x720,
+     but CSS display size is 880x495 (16:9).
+     Mouse events must be scaled: divide offset by (880/1280). */
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    cursor: default;
+  }
+  #main-canvas {
+    flex: 0 0 880px;
+    width: 880px;
+    height: 495px;
+  }
+
+  /* =====================================================
+     SIDEBARS
+  ===================================================== */
+  .sidebar {
+    flex: 0 0 200px;
+    width: 200px;
+    background: #1A1A2E;
+    border: 1px solid #2A2A4A;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ---- LEFT SIDEBAR: Characters & Dialogue ---- */
+  #sidebar-left {
+    border-right: 2px solid #3A3A5A;
+  }
+
+  .sidebar-char-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 0 6px;
+    gap: 2px;
+    border-bottom: 1px solid #2A2A4A;
+  }
+
+  .char-canvas-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .char-canvas {
+    width: 80px;
+    height: 80px;
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+
+  .char-label {
+    color: #7A7AAA;
+    font-family: monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* Dialogue / narration box in the left sidebar */
+  #dialogue-box {
+    flex: 1;
+    background: #0E0E1E;
+    border-top: 1px solid #2A2A4A;
+    color: #E8C9A0;
+    font-family: monospace;
+    font-size: 12px;
+    line-height: 1.55;
+    padding: 10px;
+    overflow-y: auto;
+    word-wrap: break-word;
+    cursor: pointer;
+    min-height: 80px;
+    /* subtle border to look like a retro text box */
+    outline: 1px solid #3A3A5A;
+    outline-offset: -2px;
+  }
+  #dialogue-box:empty::before {
+    content: "...";
+    color: #3A3A5A;
+  }
+  .dialogue-label {
+    color: #FFD080;
+    font-weight: bold;
+  }
+  /* Dim hint text below dialogue */
+  #dialogue-hint {
+    background: #0E0E1E;
+    color: #3A3A5A;
+    font-family: monospace;
+    font-size: 9px;
+    padding: 3px 10px 6px;
+    text-align: right;
+    border-top: 1px solid #1E1E3E;
+  }
+
+  /* ---- RIGHT SIDEBAR: Status & Inventory ---- */
+  #sidebar-right {
+    border-left: 2px solid #3A3A5A;
+  }
+
+  .sidebar-section-label {
+    color: #7A7AAA;
+    font-family: monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 8px 10px 4px;
+    border-bottom: 1px solid #2A2A4A;
+  }
+
+  /* Bone/treat counter row */
+  #treat-bones {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 8px 10px;
+    border-bottom: 1px solid #2A2A4A;
+  }
+
+  .bone-icon {
+    width: 24px;
+    height: 20px;
+    position: relative;
+    display: inline-block;
+  }
+  /* CSS bone shape — two circles on ends of a rectangle */
+  .bone-icon canvas {
+    width: 24px;
+    height: 20px;
+    image-rendering: pixelated;
+  }
+
+  /* Inventory grid — 2 columns x 4 rows of slots */
+  #inv-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px;
+    padding: 8px;
+  }
+
+  .inv-slot {
+    background: #0E0E1E;
+    border: 2px solid #2A2A4A;
+    width: 80px;
+    height: 70px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.1s;
+  }
+  .inv-slot.has-item {
+    cursor: pointer;
+    border-color: #3A3A6A;
+  }
+  .inv-slot.has-item:hover {
+    border-color: #5A5A9A;
+  }
+  .inv-slot.selected {
+    border-color: #FFD080;
+    background: #1E1E0E;
+  }
+
+  .inv-slot-icon {
+    font-size: 22px;
+    line-height: 1;
+  }
+  .inv-slot-name {
+    font-family: monospace;
+    font-size: 8px;
+    color: #8A8AAA;
+    text-align: center;
+    margin-top: 3px;
+    line-height: 1.2;
+    padding: 0 2px;
+    word-break: break-word;
+  }
+  .inv-slot.selected .inv-slot-name {
+    color: #FFD080;
+  }
+
+  /* "USING: ..." label below inventory */
+  #inv-using {
+    padding: 4px 10px 6px;
+    font-family: monospace;
+    font-size: 9px;
+    color: #FFD080;
+    min-height: 18px;
+    border-top: 1px solid #2A2A4A;
+  }
+
+  /* =====================================================
+     CANVAS OVERLAY ELEMENTS (combo lock, item popup)
+     These sit relative to the canvas, not the full wrapper.
+     We wrap the canvas in its own relative div.
+  ===================================================== */
+  #canvas-wrap {
+    position: relative;
+    flex: 0 0 880px;
+    width: 880px;
+  }
+  /* Combination lock overlay */
+  #combo-panel {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #3A2810;
+    border: 4px solid #7A5230;
+    padding: 28px 40px;
+    z-index: 10;
+    text-align: center;
+    min-width: 340px;
+    image-rendering: pixelated;
+  }
+  #combo-panel h3 {
+    color: #E8C9A0;
+    font-family: monospace;
+    font-size: 18px;
+    margin-bottom: 18px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+  #combo-panel p {
+    color: #C8956C;
+    font-family: monospace;
+    font-size: 14px;
+    margin-bottom: 24px;
+    line-height: 1.5;
+  }
+  .combo-digits {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    margin-bottom: 24px;
+  }
+  .digit-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .digit-btn {
+    background: #5C3A1E;
+    border: 2px solid #7A5230;
+    color: #E8C9A0;
+    font-family: monospace;
+    font-size: 14px;
+    width: 40px;
+    height: 28px;
+    cursor: pointer;
+    padding: 0;
+  }
+  .digit-btn:hover { background: #7A5230; }
+  .digit-display {
+    background: #1A0A04;
+    border: 2px solid #5C3A1E;
+    color: #FFD080;
+    font-family: monospace;
+    font-size: 28px;
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .combo-buttons {
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+  }
+  .combo-action-btn {
+    background: #5C3A1E;
+    border: 2px solid #7A5230;
+    color: #E8C9A0;
+    font-family: monospace;
+    font-size: 14px;
+    padding: 8px 18px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .combo-action-btn:hover { background: #7A5230; }
+  #combo-error {
+    color: #FF6060;
+    font-family: monospace;
+    font-size: 13px;
+    margin-top: 12px;
+    min-height: 20px;
+  }
+
+  /* Item popup */
+  #item-popup {
+    display: none;
+    position: absolute;
+    background: #1A0A04;
+    border: 3px solid #7A5230;
+    padding: 14px 20px;
+    z-index: 11;
+    max-width: 260px;
+    pointer-events: none;
+  }
+  #item-popup h4 {
+    color: #FFD080;
+    font-family: monospace;
+    font-size: 14px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+  #item-popup p {
+    color: #E8C9A0;
+    font-family: monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+<div id="game-wrapper">
+
+  <!-- LEFT SIDEBAR: Characters & Dialogue -->
+  <div class="sidebar" id="sidebar-left">
+    <div class="sidebar-char-area">
+      <div class="char-canvas-wrap">
+        <canvas class="char-canvas" id="juno-portrait" width="80" height="80"></canvas>
+        <span class="char-label">Juno</span>
+      </div>
+      <div class="char-canvas-wrap" style="margin-top:6px;">
+        <canvas class="char-canvas" id="penny-portrait" width="80" height="80"></canvas>
+        <span class="char-label">Penny</span>
+      </div>
+    </div>
+    <!-- Narration/dialogue text — click to dismiss -->
+    <div id="dialogue-box" onclick="handleDialogueClick()"></div>
+    <div id="dialogue-hint">click to dismiss</div>
+  </div>
+
+  <!-- CANVAS WRAP: holds the main game canvas + overlays -->
+  <div id="canvas-wrap">
+    <canvas id="main-canvas" width="1280" height="720"></canvas>
+
+    <!-- Combination lock panel -->
+    <div id="combo-panel">
+      <h3>Cabinet Lock</h3>
+      <p>Three numbers. Turn each dial.</p>
+      <div class="combo-digits">
+        <div class="digit-group">
+          <button class="digit-btn" onclick="changeDigit(0,1)">▲</button>
+          <div class="digit-display" id="d0">0</div>
+          <button class="digit-btn" onclick="changeDigit(0,-1)">▼</button>
+        </div>
+        <div class="digit-group">
+          <button class="digit-btn" onclick="changeDigit(1,1)">▲</button>
+          <div class="digit-display" id="d1">0</div>
+          <button class="digit-btn" onclick="changeDigit(1,-1)">▼</button>
+        </div>
+        <div class="digit-group">
+          <button class="digit-btn" onclick="changeDigit(2,1)">▲</button>
+          <div class="digit-display" id="d2">0</div>
+          <button class="digit-btn" onclick="changeDigit(2,-1)">▼</button>
+        </div>
+      </div>
+      <div class="combo-buttons">
+        <button class="combo-action-btn" onclick="tryCombo()">Try</button>
+        <button class="combo-action-btn" onclick="closeCombo()">Close</button>
+      </div>
+      <div id="combo-error"></div>
+    </div>
+
+    <!-- Item description popup -->
+    <div id="item-popup">
+      <h4 id="popup-title">Item</h4>
+      <p id="popup-text">Description.</p>
+    </div>
+  </div>
+
+  <!-- RIGHT SIDEBAR: Status & Inventory -->
+  <div class="sidebar" id="sidebar-right">
+    <div class="sidebar-section-label">Treats Found</div>
+    <!-- Six bone icons rendered into small canvases -->
+    <div id="treat-bones">
+      <canvas class="bone-icon" id="bone0" width="24" height="20"></canvas>
+      <canvas class="bone-icon" id="bone1" width="24" height="20"></canvas>
+      <canvas class="bone-icon" id="bone2" width="24" height="20"></canvas>
+      <canvas class="bone-icon" id="bone3" width="24" height="20"></canvas>
+      <canvas class="bone-icon" id="bone4" width="24" height="20"></canvas>
+      <canvas class="bone-icon" id="bone5" width="24" height="20"></canvas>
+    </div>
+    <div class="sidebar-section-label">Inventory</div>
+    <!-- 2x4 grid of inventory slots (we only use up to 4 items in this game) -->
+    <div id="inv-grid">
+      <div class="inv-slot" id="inv-slot-0" onclick="sidebarInvClick(0)">
+        <div class="inv-slot-icon" id="inv-icon-0"></div>
+        <div class="inv-slot-name" id="inv-name-0"></div>
+      </div>
+      <div class="inv-slot" id="inv-slot-1" onclick="sidebarInvClick(1)">
+        <div class="inv-slot-icon" id="inv-icon-1"></div>
+        <div class="inv-slot-name" id="inv-name-1"></div>
+      </div>
+      <div class="inv-slot" id="inv-slot-2" onclick="sidebarInvClick(2)">
+        <div class="inv-slot-icon" id="inv-icon-2"></div>
+        <div class="inv-slot-name" id="inv-name-2"></div>
+      </div>
+      <div class="inv-slot" id="inv-slot-3" onclick="sidebarInvClick(3)">
+        <div class="inv-slot-icon" id="inv-icon-3"></div>
+        <div class="inv-slot-name" id="inv-name-3"></div>
+      </div>
+      <div class="inv-slot" id="inv-slot-4" onclick="sidebarInvClick(4)">
+        <div class="inv-slot-icon" id="inv-icon-4"></div>
+        <div class="inv-slot-name" id="inv-name-4"></div>
+      </div>
+      <div class="inv-slot" id="inv-slot-5" onclick="sidebarInvClick(5)">
+        <div class="inv-slot-icon" id="inv-icon-5"></div>
+        <div class="inv-slot-name" id="inv-name-5"></div>
+      </div>
+      <div class="inv-slot" id="inv-slot-6" onclick="sidebarInvClick(6)">
+        <div class="inv-slot-icon" id="inv-icon-6"></div>
+        <div class="inv-slot-name" id="inv-name-6"></div>
+      </div>
+      <div class="inv-slot" id="inv-slot-7" onclick="sidebarInvClick(7)">
+        <div class="inv-slot-icon" id="inv-icon-7"></div>
+        <div class="inv-slot-name" id="inv-name-7"></div>
+      </div>
+    </div>
+    <div id="inv-using"></div>
+  </div>
+
+</div><!-- end #game-wrapper -->
+
+<script>
+// ============================================================
+// GAME STATE
+// ============================================================
+const STATE = {
+  scene: 'title',        // 'title' | 'dining' | 'living' | 'end'
+  treats: [false,false,false,false,false,false],
+  inventory: [],         // array of item keys
+  selectedItem: null,    // currently held/selected item key
+  narration: null,       // current narration text (or null)
+  narrationLabel: 'Juno', // speaker/subject label shown before dialogue
+  narrationQueue: [],    // queued narration messages
+  fadeAlpha: 0,          // 0=fully visible, 1=black
+  fading: false,
+  fadeDir: 0,            // 1=fade out, -1=fade in
+  fadeTarget: null,      // scene to go to after fade
+  animFrame: 0,
+  tick: 0,
+  // puzzle state
+  dresserDrawerOpen: false,
+  pennyPortraitSwung: false,
+  quiltPocketFound: false,
+  quiltExamined: false,
+  duckOpened: false,
+  pouфMoved: false,
+  comboDigits: [0,0,0],
+  // clicked flags to prevent repeated treat triggers
+  treat1Found: false, treat2Found: false, treat3Found: false,
+  treat4Found: false, treat5Found: false, treat6Found: false,
+  // Penny click counts for re-click responses
+  pennyClicks: 0,
+  // Pixelation level for the photo backgrounds.
+  // 3 = slightly chunky pixel art look. Press [ to go sharper, ] to go chunkier.
+  pixelSize: 3,
+};
+
+// Items definitions
+const ITEMS = {
+  scrap: {
+    name: 'Scrap of Paper',
+    icon: '📄',
+    desc: '"Where the portraits keep watch over dinner."',
+    color: '#F0E8D8',
+    darkColor: '#C8A878',
+  },
+  plantTag: {
+    name: 'Plant Tag',
+    icon: '🏷️',
+    desc: '"POSY knows."',
+    color: '#6AAA44',
+    darkColor: '#3A7A20',
+  },
+  calatheaNote: {
+    name: 'Calathea Note',
+    icon: '📝',
+    desc: '"The duck on the right shelf has a secret base."',
+    color: '#7EC8C0',
+    darkColor: '#4A8880',
+  },
+  duckSlip: {
+    name: 'Duck Slip',
+    icon: '🦆',
+    desc: '"2-4-1"  written in neat, slightly smug handwriting.',
+    color: '#FFD080',
+    darkColor: '#A07030',
+  },
+};
+
+// Canvas setup
+const canvas = document.getElementById('main-canvas');
+const ctx = canvas.getContext('2d');
+const W = 1280, H = 720;
+
+// Internal canvas resolution
+const GW = 1280, GH = 720;
+
+// CSS display size of the canvas — used for mouse coordinate scaling
+const CANVAS_CSS_W = 880;
+const CANVAS_CSS_H = 495;
+
+// ============================================================
+// OFFSCREEN CANVAS FOR PIXELATION
+// We draw the photo at small size here, then scale back up
+// with smoothing OFF to get the chunky pixel art look
+// ============================================================
+const offscreen = document.createElement('canvas');
+offscreen.width = GW;
+offscreen.height = GH;
+const offCtx = offscreen.getContext('2d');
+
+// Brief on-screen message when pixel size changes
+let pixelSizeMsg = null;
+let pixelSizeMsgTimer = 0;
+
+function drawPixelatedImage(img) {
+  const ps = STATE.pixelSize;
+  const sw = Math.floor(GW / ps);
+  const sh = Math.floor(GH / ps);
+  // Step 1: draw full image scaled DOWN into offscreen canvas
+  offCtx.imageSmoothingEnabled = true;
+  offCtx.drawImage(img, 0, 0, sw, sh);
+  // Step 2: draw that tiny version back UP to full canvas with smoothing OFF
+  // This makes each "pixel" a hard-edged block
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(offscreen, 0, 0, sw, sh, 0, 0, GW, GH);
+  // Restore smoothing for other drawing operations
+  ctx.imageSmoothingEnabled = true;
+}
+
+// ============================================================
+// ROOM PHOTO OBJECTS
+// Populated after images load successfully
+// ============================================================
+let diningRoomImg = null;
+let livingRoomImg = null;
+let imagesLoaded = false;
+let imageLoadError = false;
+
+// Load both photos before starting the game
+function loadRoomPhotos() {
+  return new Promise((resolve, reject) => {
+    let loaded = 0;
+
+    function onLoad() {
+      loaded++;
+      if (loaded === 2) {
+        imagesLoaded = true;
+        resolve();
+      }
+    }
+
+    function onError(imgName) {
+      imageLoadError = true;
+      reject(new Error('Could not load ' + imgName));
+    }
+
+    diningRoomImg = new Image();
+    diningRoomImg.onload = onLoad;
+    diningRoomImg.onerror = () => onError('dining-room.JPG');
+    diningRoomImg.src = 'dining-room.JPG';
+
+    livingRoomImg = new Image();
+    livingRoomImg.onload = onLoad;
+    livingRoomImg.onerror = () => onError('living-room.JPG');
+    livingRoomImg.src = 'living-room.JPG';
+  });
+}
+
+// Draw an error message on the canvas if photos fail to load
+function drawImageError() {
+  ctx.fillStyle = '#1A0A04';
+  ctx.fillRect(0, 0, GW, GH);
+  ctx.fillStyle = '#FF6060';
+  ctx.font = 'bold 28px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('Could not load room photos.', GW/2, GH/2 - 40);
+  ctx.fillStyle = '#E8C9A0';
+  ctx.font = '20px monospace';
+  ctx.fillText('Make sure dining-room.JPG and living-room.JPG', GW/2, GH/2);
+  ctx.fillText('are in the same folder as this HTML file.', GW/2, GH/2 + 30);
+  ctx.textAlign = 'left';
+}
+
+// Show pixel size briefly in corner when changed
+function showPixelSizeMsg() {
+  pixelSizeMsg = 'PIXEL SIZE: ' + STATE.pixelSize;
+  pixelSizeMsgTimer = 120; // frames (~2 seconds at 60fps)
+}
+
+// ============================================================
+// UTILITY DRAWING HELPERS
+// All coordinates are in native 1280x720 canvas pixels
+// ============================================================
+function px(x, y, w, h, color) {
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y, w, h);
+}
+function pxLine(x1, y1, x2, y2, color, thickness=1) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = thickness;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+}
+function pxText(text, x, y, color, size=5, align='left') {
+  ctx.fillStyle = color;
+  ctx.font = `bold ${size*2}px monospace`;
+  ctx.textAlign = align;
+  ctx.fillText(text, x, y);
+  ctx.textAlign = 'left';
+}
+function pxRect(x, y, w, h, color) { px(x,y,w,h,color); }
+function pxBorder(x, y, w, h, color, thickness=1) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = thickness;
+  ctx.strokeRect(x+1, y+1, w-2, h-2);
+}
+
+// ============================================================
+// HOTSPOT SYSTEM
+// ============================================================
+let hotspots = [];
+
+function clearHotspots() { hotspots = []; }
+
+function addHotspot(id, x, y, w, h, onClick) {
+  hotspots.push({ id, x, y, w, h, onClick });
+}
+
+function hitTest(mx, my) {
+  // mx/my are in native canvas coords
+  for (let i = hotspots.length - 1; i >= 0; i--) {
+    const h = hotspots[i];
+    if (mx >= h.x && mx < h.x+h.w && my >= h.y && my < h.y+h.h) {
+      return h;
+    }
+  }
+  return null;
+}
+
+// ============================================================
+// SIDEBAR: NARRATION / DIALOGUE
+// All narration text goes into the HTML dialogue box instead
+// of being drawn on canvas. Clicking the dialogue box dismisses.
+// ============================================================
+function updateDialogueBox() {
+  const box = document.getElementById('dialogue-box');
+  const hint = document.getElementById('dialogue-hint');
+  if (STATE.narration) {
+    box.innerHTML = STATE.narrationLabel
+      ? '<span class="dialogue-label">' + STATE.narrationLabel + ':</span> ' + STATE.narration
+      : STATE.narration;
+    hint.style.display = 'block';
+  } else {
+    box.innerHTML = '';
+    hint.style.display = 'none';
+  }
+}
+
+function handleDialogueClick() {
+  // Clicking the dialogue box advances or dismisses narration
+  dismissNarration();
+}
+
+function say(text, label='') {
+  STATE.narration = text;
+  STATE.narrationLabel = label;
+  STATE.narrationQueue = [];
+  updateDialogueBox();
+}
+function sayAs(label, text) { say(text, label); }
+
+function sayQueue(lines) {
+  STATE.narration = lines[0];
+  STATE.narrationQueue = lines.slice(1);
+  updateDialogueBox();
+}
+
+function dismissNarration() {
+  if (STATE.narrationQueue.length > 0) {
+    STATE.narration = STATE.narrationQueue.shift();
+  } else {
+    STATE.narration = null;
+  }
+  updateDialogueBox();
+}
+
+// ============================================================
+// SIDEBAR: TREAT BONES
+// Draws bone icons on the six small canvases in the right sidebar
+// ============================================================
+function drawBoneIcon(canvasEl, found) {
+  const c = canvasEl.getContext('2d');
+  c.clearRect(0, 0, 24, 20);
+  // Bone shape: shaft plus knobs at each corner
+  const shaft  = found ? '#FFD080' : '#2A1808';
+  const knob   = found ? '#FFB040' : '#1A1008';
+  // Shaft
+  c.fillStyle = shaft;
+  c.fillRect(4, 7, 16, 6);
+  // Four knobs (corners)
+  c.fillStyle = knob;
+  c.fillRect(1, 5, 5, 5);   // top-left
+  c.fillRect(18, 5, 5, 5);  // top-right
+  c.fillRect(1, 10, 5, 5);  // bottom-left
+  c.fillRect(18, 10, 5, 5); // bottom-right
+}
+
+function updateTreatBones() {
+  for (let i = 0; i < 6; i++) {
+    const el = document.getElementById('bone' + i);
+    if (el) drawBoneIcon(el, STATE.treats[i]);
+  }
+}
+
+// ============================================================
+// SIDEBAR: INVENTORY SLOTS
+// Renders item icons (emoji + name) into the HTML grid slots
+// ============================================================
+function updateInventorySidebar() {
+  for (let i = 0; i < 8; i++) {
+    const slot  = document.getElementById('inv-slot-' + i);
+    const icon  = document.getElementById('inv-icon-' + i);
+    const label = document.getElementById('inv-name-' + i);
+    if (!slot) continue;
+
+    if (i < STATE.inventory.length) {
+      const key = STATE.inventory[i];
+      const item = ITEMS[key];
+      slot.classList.add('has-item');
+      icon.textContent = item.icon;
+      label.textContent = item.name;
+      if (STATE.selectedItem === key) {
+        slot.classList.add('selected');
+      } else {
+        slot.classList.remove('selected');
+      }
+    } else {
+      slot.classList.remove('has-item', 'selected');
+      icon.textContent = '';
+      label.textContent = '';
+    }
+  }
+
+  // Show "USING: ..." label
+  const usingEl = document.getElementById('inv-using');
+  if (STATE.selectedItem) {
+    usingEl.textContent = 'USING: ' + ITEMS[STATE.selectedItem].name;
+  } else {
+    usingEl.textContent = '';
+  }
+}
+
+// Click handler for sidebar inventory slots
+function sidebarInvClick(i) {
+  if (i >= STATE.inventory.length) return;
+  const key = STATE.inventory[i];
+  if (STATE.selectedItem === key) {
+    STATE.selectedItem = null;
+    hideItemPopup();
+  } else {
+    STATE.selectedItem = key;
+    showItemPopupSidebar(key);
+  }
+  updateInventorySidebar();
+}
+
+function showItemPopupSidebar(key) {
+  const item = ITEMS[key];
+  const popup = document.getElementById('item-popup');
+  document.getElementById('popup-title').textContent = item.name;
+  document.getElementById('popup-text').textContent = item.desc;
+  // Position near top-left of canvas area
+  popup.style.left = '10px';
+  popup.style.top = '10px';
+  popup.style.display = 'block';
+  setTimeout(() => { popup.style.display = 'none'; }, 3500);
+}
+
+function showItemPopup(key, gx, gy) {
+  // gx/gy in canvas-internal coords — convert to CSS pixels for positioning
+  const scaleX = CANVAS_CSS_W / GW;
+  const scaleY = CANVAS_CSS_H / GH;
+  const item = ITEMS[key];
+  const popup = document.getElementById('item-popup');
+  document.getElementById('popup-title').textContent = item.name;
+  document.getElementById('popup-text').textContent = item.desc;
+  const px2 = gx * scaleX + 10;
+  const py2 = Math.max(10, gy * scaleY - 20);
+  popup.style.left = Math.min(px2, CANVAS_CSS_W - 280) + 'px';
+  popup.style.top = py2 + 'px';
+  popup.style.display = 'block';
+  setTimeout(() => { popup.style.display = 'none'; }, 3500);
+}
+
+function hideItemPopup() {
+  document.getElementById('item-popup').style.display = 'none';
+}
+
+// ============================================================
+// TREAT SYSTEM
+// ============================================================
+function findTreat(idx, message, label='Juno') {
+  if (!STATE.treats[idx]) {
+    STATE.treats[idx] = true;
+    say(message, label);
+    updateTreatBones();
+  }
+  checkWin();
+}
+
+function treatCount() { return STATE.treats.filter(Boolean).length; }
+
+function checkWin() {
+  if (treatCount() === 6) {
+    setTimeout(() => startFade('end'), 2000);
+  }
+}
+
+// ============================================================
+// INVENTORY
+// ============================================================
+function addItem(key) {
+  if (!STATE.inventory.includes(key)) {
+    STATE.inventory.push(key);
+    updateInventorySidebar();
+  }
+}
+
+function hasItem(key) { return STATE.inventory.includes(key); }
+
+function removeItem(key) {
+  const idx = STATE.inventory.indexOf(key);
+  if (idx !== -1) STATE.inventory.splice(idx, 1);
+  if (STATE.selectedItem === key) STATE.selectedItem = null;
+  updateInventorySidebar();
+}
+
+// ============================================================
+// FADE SYSTEM
+// ============================================================
+function startFade(targetScene) {
+  STATE.fading = true;
+  STATE.fadeDir = 1;
+  STATE.fadeTarget = targetScene;
+}
+
+function updateFade() {
+  if (!STATE.fading) return;
+  if (STATE.fadeDir === 1) {
+    STATE.fadeAlpha = Math.min(1, STATE.fadeAlpha + 0.05);
+    if (STATE.fadeAlpha >= 1) {
+      STATE.scene = STATE.fadeTarget;
+      STATE.narration = null;
+      updateDialogueBox();
+      clearHotspots();
+      STATE.fadeDir = -1;
+    }
+  } else {
+    STATE.fadeAlpha = Math.max(0, STATE.fadeAlpha - 0.05);
+    if (STATE.fadeAlpha <= 0) {
+      STATE.fading = false;
+    }
+  }
+}
+
+// ============================================================
+// COMBINATION LOCK
+// ============================================================
+let comboOpen = false;
+
+function openCombo() {
+  comboOpen = true;
+  STATE.comboDigits = [0,0,0];
+  document.getElementById('d0').textContent = '0';
+  document.getElementById('d1').textContent = '0';
+  document.getElementById('d2').textContent = '0';
+  document.getElementById('combo-error').textContent = '';
+  document.getElementById('combo-panel').style.display = 'block';
+}
+
+function closeCombo() {
+  comboOpen = false;
+  document.getElementById('combo-panel').style.display = 'none';
+}
+
+function changeDigit(slot, dir) {
+  STATE.comboDigits[slot] = (STATE.comboDigits[slot] + dir + 10) % 10;
+  document.getElementById('d'+slot).textContent = STATE.comboDigits[slot];
+}
+
+function tryCombo() {
+  const [a,b,c] = STATE.comboDigits;
+  if (a===2 && b===4 && c===1) {
+    closeCombo();
+    STATE.dresserDrawerOpen = true;
+    if (!STATE.treat3Found) {
+      STATE.treat3Found = true;
+      findTreat(2, "THREE. I'm on a roll. Penny underestimated me.");
+    }
+  } else {
+    document.getElementById('combo-error').textContent = 'Click. Nothing. The lock disagrees.';
+    setTimeout(() => {
+      document.getElementById('combo-error').textContent = '';
+    }, 2000);
+  }
+}
+
+// ============================================================
+// PIXEL ART DRAWING: SHARED CHARACTERS
+// ============================================================
+
+function drawJunoSprite(cx, cy, scale=1) {
+  // Juno: sandy tan Jindo dog, facing right, sitting
+  const s = scale;
+  const f = (x,y,w,h,c) => px(cx+x*s, cy+y*s, w*s, h*s, c);
+
+  // Body
+  f(-16,-28,32,24,'#C8956C'); // main body
+  f(-12,-32,24,8,'#A0704A');  // darker back
+  f(-8,-20,16,16,'#E8C9A0');  // lighter chest
+
+  // Head
+  f(-12,-44,24,20,'#C8956C');
+  f(-8,-48,16,8,'#C8956C');   // top of head
+  f(-6,-44,12,6,'#E8C9A0');   // face lighter patch
+
+  // Ears (pointed)
+  f(-14,-52,6,12,'#C8956C');  // left ear
+  f(8,-52,6,12,'#C8956C');    // right ear
+  f(-12,-50,2,8,'#A0704A');   // ear inner left
+  f(10,-50,2,8,'#A0704A');    // ear inner right
+
+  // Eyes
+  f(-8,-42,4,4,'#2A1A0A');    // left eye
+  f(4,-42,4,4,'#2A1A0A');     // right eye
+  f(-6,-40,2,2,'#FFFFFF');    // left eye shine
+  f(6,-40,2,2,'#FFFFFF');     // right shine
+
+  // Nose
+  f(-2,-38,6,4,'#3A1A0A');
+
+  // Legs
+  f(-14,-8,8,16,'#C8956C');   // front left leg
+  f(6,-8,8,16,'#C8956C');     // front right leg
+  f(-14,4,8,6,'#A0704A');     // paw left
+  f(6,4,8,6,'#A0704A');       // paw right
+
+  // Curled tail
+  f(16,-24,6,8,'#C8956C');
+  f(20,-28,6,6,'#C8956C');
+  f(22,-34,4,6,'#C8956C');
+  f(18,-36,6,4,'#C8956C');
+}
+
+function drawPennySprite(cx, cy, scale=1) {
+  // Penny: small cream fluffy poodle, sitting smugly
+  const s = scale;
+  const f = (x,y,w,h,c) => px(cx+x*s, cy+y*s, w*s, h*s, c);
+
+  // Body (round and fluffy — irregular pixel clusters)
+  f(-10,-20,20,20,'#F0E8D8');
+  f(-12,-18,24,16,'#F0E8D8');
+  f(-14,-14,28,10,'#F0E8D8');
+  f(-8,-24,16,6,'#F0E8D8');   // pom-pom top
+
+  // Fluffy texture dots
+  f(-12,-16,4,4,'#FFFFFF');
+  f(8,-14,4,4,'#FFFFFF');
+  f(-10,-10,4,4,'#FFFFFF');
+  f(6,-20,4,4,'#FFFFFF');
+  f(-6,-22,4,4,'#FFFFFF');
+
+  // Head (very round)
+  f(-10,-36,20,18,'#F0E8D8');
+  f(-12,-34,24,14,'#F0E8D8');
+  f(-8,-40,16,6,'#F0E8D8');   // top pom-pom
+
+  // Face
+  f(-4,-32,10,6,'#E8D8C0');   // face lighter center
+
+  // Eyes (small, smug half-closed)
+  f(-6,-30,4,2,'#2A1A0A');
+  f(2,-30,4,2,'#2A1A0A');
+  // smug crinkle lines
+  f(-8,-28,4,2,'#C8A888');
+  f(4,-28,4,2,'#C8A888');
+
+  // Tiny black nose
+  f(-2,-26,4,4,'#1A0A00');
+
+  // Tiny mouth (smug upward curl)
+  f(-4,-24,2,2,'#C8A888');
+  f(2,-24,2,2,'#C8A888');
+
+  // Tiny poodle paws
+  f(-10,0,8,6,'#F0E8D8');
+  f(2,0,8,6,'#F0E8D8');
+
+  // Tail (tiny pom-pom)
+  f(12,-18,6,6,'#F0E8D8');
+  f(14,-22,4,4,'#F0E8D8');
+}
+
+// ============================================================
+// SIDEBAR CHARACTER PORTRAITS
+// Render the pixel art sprites onto the small sidebar canvases.
+// Called once at startup and can be re-called any time.
+// ============================================================
+function drawSidebarPortraits() {
+  // Juno portrait — 80x80 canvas, sprite drawn at center bottom
+  const junoCanvas = document.getElementById('juno-portrait');
+  const jc = junoCanvas.getContext('2d');
+  jc.clearRect(0, 0, 80, 80);
+  // Draw to an offscreen canvas in 1280x720 space, then copy
+  // Instead: draw directly using our px() helper temporarily redirected.
+  // We use a small helper that draws to the sidebar canvas context.
+  drawSpriteToContext(jc, 80, 80, 'juno');
+
+  // Penny portrait
+  const pennyCanvas = document.getElementById('penny-portrait');
+  const pc = pennyCanvas.getContext('2d');
+  pc.clearRect(0, 0, 80, 80);
+  drawSpriteToContext(pc, 80, 80, 'penny');
+}
+
+function drawSpriteToContext(targetCtx, cw, ch, who) {
+  // Temporarily swap ctx to the target context for drawing
+  const origCtx = ctx;
+  // We can't literally swap ctx because it's const, so we duplicate
+  // the sprite drawing logic using targetCtx directly.
+  const s = 1.1; // scale factor to fit nicely in 80x80
+  const cx = cw / 2;
+  const cy = ch - 8; // bottom-align the sprite
+
+  function f(x, y, w, h, color) {
+    targetCtx.fillStyle = color;
+    targetCtx.fillRect(cx + x*s, cy + y*s, w*s, h*s);
+  }
+
+  if (who === 'juno') {
+    // Background
+    targetCtx.fillStyle = '#1A1A2E';
+    targetCtx.fillRect(0, 0, cw, ch);
+
+    f(-16,-28,32,24,'#C8956C');
+    f(-12,-32,24,8,'#A0704A');
+    f(-8,-20,16,16,'#E8C9A0');
+    f(-12,-44,24,20,'#C8956C');
+    f(-8,-48,16,8,'#C8956C');
+    f(-6,-44,12,6,'#E8C9A0');
+    f(-14,-52,6,12,'#C8956C');
+    f(8,-52,6,12,'#C8956C');
+    f(-12,-50,2,8,'#A0704A');
+    f(10,-50,2,8,'#A0704A');
+    f(-8,-42,4,4,'#2A1A0A');
+    f(4,-42,4,4,'#2A1A0A');
+    f(-6,-40,2,2,'#FFFFFF');
+    f(6,-40,2,2,'#FFFFFF');
+    f(-2,-38,6,4,'#3A1A0A');
+    f(-14,-8,8,16,'#C8956C');
+    f(6,-8,8,16,'#C8956C');
+    f(-14,4,8,6,'#A0704A');
+    f(6,4,8,6,'#A0704A');
+    f(16,-24,6,8,'#C8956C');
+    f(20,-28,6,6,'#C8956C');
+    f(22,-34,4,6,'#C8956C');
+    f(18,-36,6,4,'#C8956C');
+  } else {
+    // Penny
+    targetCtx.fillStyle = '#1A1A2E';
+    targetCtx.fillRect(0, 0, cw, ch);
+
+    f(-10,-20,20,20,'#F0E8D8');
+    f(-12,-18,24,16,'#F0E8D8');
+    f(-14,-14,28,10,'#F0E8D8');
+    f(-8,-24,16,6,'#F0E8D8');
+    f(-12,-16,4,4,'#FFFFFF');
+    f(8,-14,4,4,'#FFFFFF');
+    f(-10,-10,4,4,'#FFFFFF');
+    f(6,-20,4,4,'#FFFFFF');
+    f(-6,-22,4,4,'#FFFFFF');
+    f(-10,-36,20,18,'#F0E8D8');
+    f(-12,-34,24,14,'#F0E8D8');
+    f(-8,-40,16,6,'#F0E8D8');
+    f(-4,-32,10,6,'#E8D8C0');
+    f(-6,-30,4,2,'#2A1A0A');
+    f(2,-30,4,2,'#2A1A0A');
+    f(-8,-28,4,2,'#C8A888');
+    f(4,-28,4,2,'#C8A888');
+    f(-2,-26,4,4,'#1A0A00');
+    f(-4,-24,2,2,'#C8A888');
+    f(2,-24,2,2,'#C8A888');
+    f(-10,0,8,6,'#F0E8D8');
+    f(2,0,8,6,'#F0E8D8');
+    f(12,-18,6,6,'#F0E8D8');
+    f(14,-22,4,4,'#F0E8D8');
+  }
+}
+
+// ============================================================
+// TITLE SCREEN
+// ============================================================
+function drawTitleScreen() {
+  // Background gradient effect (dark night blue)
+  ctx.fillStyle = '#0A0A18';
+  ctx.fillRect(0, 0, W, H);
+
+  // Stars — positions are already in full 1280x720 space
+  const stars = [[160,80],[400,40],[700,110],[960,30],[1200,140],[1440,60],[1800,100],[2100,50],[2300,120],[2440,160],[260,200],[600,240],[1100,180],[1600,220],[2000,150]];
+  stars.forEach(([sx,sy]) => {
+    const t = STATE.tick * 0.04;
+    const b = 0.6 + 0.4*Math.sin(t + sx*0.3);
+    ctx.fillStyle = `rgba(255,255,220,${b})`;
+    ctx.fillRect(sx/2, sy/2, 3, 3);
+  });
+
+  // Moon
+  px(1160, 60, 48, 48, '#FFFCE0');
+  px(1164, 64, 40, 40, '#FFF8C0');
+  px(1172, 72, 24, 24, '#FFEEA0');
+
+  // Ground / grass
+  px(0, 560, 1280, 160, '#1A3A10');
+  px(0, 550, 1280, 16, '#2A5A18');
+  // grass tufts
+  for (let gx = 0; gx < 1280; gx += 36) {
+    px(gx, 544, 4, 10, '#3A7A20');
+    px(gx+10, 540, 4, 14, '#2A6018');
+    px(gx+20, 546, 4, 8, '#4A8A28');
+  }
+
+  // House silhouette
+  px(300, 280, 680, 280, '#1A2030');  // house body
+  // Roof
+  ctx.fillStyle = '#0A1020';
+  ctx.beginPath();
+  ctx.moveTo(280, 280);
+  ctx.lineTo(640, 160);
+  ctx.lineTo(1000, 280);
+  ctx.closePath();
+  ctx.fill();
+  // Windows with glow
+  px(380, 340, 100, 80, '#2A2010');
+  px(390, 350, 80, 60, '#8B6914');
+  const wg = 0.3 + 0.1*Math.sin(STATE.tick * 0.05);
+  ctx.fillStyle = `rgba(255,200,80,${wg})`;
+  ctx.fillRect(390, 350, 100, 60);
+  px(394, 354, 32, 52, '#FFD060');
+  px(434, 354, 32, 52, '#FFD060');
+  px(386, 378, 76, 4, '#C8A830');
+  px(426, 350, 4, 60, '#C8A830');
+
+  px(660, 340, 100, 80, '#2A2010');
+  px(670, 350, 80, 60, '#8B6914');
+  px(674, 354, 32, 52, '#FFD060');
+  px(714, 354, 32, 52, '#FFD060');
+  px(666, 378, 76, 4, '#C8A830');
+  px(706, 350, 4, 60, '#C8A830');
+
+  // Door
+  px(590, 460, 100, 100, '#3A1A08');
+  px(600, 470, 80, 88, '#5C2A10');
+  px(620, 510, 24, 16, '#C8A050');
+  px(630, 514, 12, 8, '#FFD080');
+
+  // Draw Juno on title (sitting to the right of the house)
+  drawJunoSprite(920, 530, 4);
+
+  // Draw Penny to the right, smug
+  drawPennySprite(1060, 540, 3);
+
+  // Easter eggs scattered
+  const eggs = [[200, 520, '#FF6060', '#FFE0E0'], [240, 516, '#60C060', '#E0FFE0'], [190, 524, '#6060FF', '#E0E0FF']];
+  eggs.forEach(([ex, ey, c1, c2]) => {
+    px(ex, ey, 12, 18, c1);
+    px(ex+2, ey+2, 8, 8, c2);
+  });
+
+  // Title text
+  pxText("JUNO'S TREAT HUNT", 641, 102, '#1A0A00', 28, 'center');
+  pxText("JUNO'S TREAT HUNT", 640, 100, '#FFD080', 28, 'center');
+  // Subtitle
+  pxText("A VERY IMPORTANT EASTER MISSION", 640, 136, '#E8C9A0', 12, 'center');
+  pxText("by Penny (supervised by Juno)", 640, 156, '#C8956C', 10, 'center');
+
+  // Click to start
+  const blink = Math.floor(STATE.tick / 30) % 2 === 0;
+  if (blink) {
+    pxText("[ CLICK ANYWHERE TO BEGIN ]", 640, 600, '#FFFFFF', 12, 'center');
+  }
+
+  // Controls reminder
+  pxText("Click objects to examine  |  Find all 6 treats", 640, 680, '#8A8A9A', 8, 'center');
+}
+
+// ============================================================
+// SCENE 1: DINING ROOM
+// Photo-based background with pixel art overlays on top.
+// All tick-based animations have been removed — only
+// state-change overlays (opened drawer, swung portrait) remain.
+// ============================================================
+function drawDiningRoom() {
+  // === PHOTO BACKGROUND ===
+  drawPixelatedImage(diningRoomImg);
+
+  // === PENNY PORTRAIT STATE OVERLAY ===
+  // When the portrait has been swung open, draw the treat reveal
+  // on top of the photo at the Penny portrait position
+  // portrait swung and drawer opened states are tracked but no visual overlay drawn
+
+  // === DOORWAY NAVIGATION HINT ===
+  const doorX = Math.floor(0.88 * GW);
+  const doorY = Math.floor(0.42 * GH);
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(doorX - 8, doorY - 22, 80, 52);
+  pxText("→", doorX + 12, doorY + 14, '#F0E8D8', 16, 'center');
+  pxText("LIVING", doorX + 12, doorY + 30, '#C8C8C8', 6, 'center');
+  pxText("ROOM", doorX + 12, doorY + 44, '#C8C8C8', 6, 'center');
+}
+
+// ============================================================
+// SCENE 2: LIVING ROOM
+// Photo-based background with pixel art overlays on top.
+// All tick-based animations have been removed.
+// ============================================================
+function drawLivingRoom() {
+  // === PHOTO BACKGROUND ===
+  drawPixelatedImage(livingRoomImg);
+
+  // quilt pocket and pouf states are tracked but no visual overlay drawn
+
+  // === DOORWAY NAVIGATION HINT (left side) ===
+  const dwX = Math.floor(0.02 * GW);
+  const dwY = Math.floor(0.40 * GH);
+  ctx.fillStyle = 'rgba(0,0,0,0.50)';
+  ctx.fillRect(dwX, dwY, Math.floor(0.07 * GW), Math.floor(0.20 * GH));
+  pxText("←", dwX + 38, dwY + 68, '#F0E8D8', 16, 'center');
+  pxText("DINING", dwX + 38, dwY + 88, '#C8C8C8', 6, 'center');
+  pxText("ROOM", dwX + 38, dwY + 102, '#C8C8C8', 6, 'center');
+}
+
+// Draw the pixel size indicator briefly in corner when changed
+function drawPixelSizeIndicator() {
+  if (!pixelSizeMsg || pixelSizeMsgTimer <= 0) return;
+  pixelSizeMsgTimer--;
+  ctx.fillStyle = 'rgba(26,10,4,0.82)';
+  ctx.fillRect(GW - 210, GH - 40, 200, 30);
+  ctx.strokeStyle = '#7A5230';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(GW - 210, GH - 40, 200, 30);
+  ctx.fillStyle = '#FFD080';
+  ctx.font = 'bold 14px monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText(pixelSizeMsg, GW - 16, GH - 20);
+  ctx.textAlign = 'left';
+  if (pixelSizeMsgTimer <= 0) pixelSizeMsg = null;
+}
+
+// ============================================================
+// END SCREEN
+// ============================================================
+function drawEndScreen() {
+  ctx.fillStyle = '#0A1810';
+  ctx.fillRect(0, 0, W, H);
+
+  // Soft grass
+  px(0, 540, GW, 180, '#1A3A10');
+  px(0, 530, GW, 16, '#2A5A18');
+
+  // Stars / sky mood
+  const starPositions = [[100,60],[300,100],[560,40],[800,80],[1040,50],[1200,110]];
+  starPositions.forEach(([sx,sy]) => {
+    ctx.fillStyle = 'rgba(255,255,200,0.7)';
+    ctx.fillRect(sx, sy, 4, 4);
+  });
+
+  // Big treat pile
+  const treats = [
+    [580, 510, '#FFD080', '#FF9040'],
+    [616, 506, '#FF8040', '#FFD080'],
+    [650, 514, '#FFD080', '#FF6020'],
+    [600, 486, '#FF9040', '#FFE060'],
+    [632, 490, '#FFD080', '#FF8040'],
+    [620, 470, '#FF6020', '#FFD080'],
+  ];
+  treats.forEach(([tx,ty,c1,c2]) => {
+    px(tx, ty, 28, 22, c1);
+    px(tx+4, ty+2, 20, 10, c2);
+    px(tx+8, ty+2, 12, 4, '#FFFFFF');
+    px(tx-2, ty+4, 6, 6, c1);
+    px(tx+24, ty+4, 6, 6, c1);
+    px(tx-2, ty+12, 6, 6, c1);
+    px(tx+24, ty+12, 6, 6, c1);
+  });
+
+  // Juno sitting proudly
+  drawJunoSprite(560, 524, 6);
+
+  // Penny in background (slightly smaller, slightly less smug)
+  drawPennySprite(720, 524, 5);
+
+  px(720, 488, 40, 16, '#8FAF8A');
+  px(716, 496, 10, 4, '#F0E8D8');
+
+  // Title
+  pxText("JUNO WINS EASTER", GW/2, 160, '#1A0A00', 24, 'center');
+  pxText("JUNO WINS EASTER", GW/2-2, 158, '#FFD080', 24, 'center');
+
+  // Final narration (wrapped)
+  const narr = "Six treats. All found. Penny hid them well, but she forgot one crucial thing: I am a dog, and finding food is literally the only thing I was built to do. I win Easter.";
+  const words = narr.split(' ');
+  let lines = [];
+  let cur = '';
+  ctx.font = 'bold 20px monospace';
+  words.forEach(w => {
+    const test = cur ? cur + ' ' + w : w;
+    if (ctx.measureText(test).width > 1040) {
+      lines.push(cur);
+      cur = w;
+    } else {
+      cur = test;
+    }
+  });
+  if (cur) lines.push(cur);
+
+  px(120, 190, 1040, lines.length*24+24, '#1A0A04');
+  pxBorder(120, 190, 1040, lines.length*24+24, '#7A5230', 2);
+  lines.forEach((line, i) => {
+    pxText(line, GW/2, 208 + i*24, '#E8C9A0', 10, 'center');
+  });
+
+  // Treat counter complete
+  pxText("ALL 6 TREATS FOUND!", GW/2, 440, '#FFD080', 14, 'center');
+  for (let i = 0; i < 6; i++) {
+    const bx = GW/2 - 70 + i*24;
+    const by = 452;
+    px(bx, by, 16, 8, '#FFD080');
+    px(bx-2, by, 6, 6, '#FFB040');
+    px(bx+12, by, 6, 6, '#FFB040');
+    px(bx, by+6, 6, 6, '#FFB040');
+    px(bx+10, by+6, 6, 6, '#FFB040');
+  }
+
+  // Play again button
+  const btnX = GW/2 - 110, btnY = 600;
+  px(btnX, btnY, 220, 40, '#3A1808');
+  pxBorder(btnX, btnY, 220, 40, '#FFD080', 2);
+  pxText("[ PLAY AGAIN ]", GW/2, btnY+26, '#FFD080', 12, 'center');
+}
+
+// ============================================================
+// HOTSPOT SETUP
+// All coordinates are in native 1280x720 space.
+// ============================================================
+function setupDiningHotspots() {
+  clearHotspots();
+
+  // ============================================================
+  // DINING ROOM HOTSPOT COORDINATES
+  // Each addHotspot call: (id, x, y, w, h, handler)
+  // x/y/w/h are in pixels (canvas is 1280x720)
+  // To adjust: change the decimal fractions (0.0 to 1.0)
+  // x fraction * 1280 = pixels from left
+  // y fraction * 720 = pixels from top
+  // ============================================================
+
+  // purple napkin: on table, center-left
+  addHotspot('napkin-purple', Math.floor(0.44*GW), Math.floor(0.65*GH), Math.floor(0.11*GW), Math.floor(0.1*GH), () => {
+    if (STATE.selectedItem) { sayAs('Purple Napkin', "I can't really use that on a napkin."); return; }
+    if (!STATE.treat1Found) {
+      STATE.treat1Found = true;
+      findTreat(0, "I FOUND ONE. I found one immediately. I am the greatest.", 'Purple Napkin');
+    } else {
+      sayAs('Purple Napkin', "The treat is gone. I ate it in my mind.");
+    }
+  });
+
+  // mustard napkin: on table, center
+  addHotspot('napkin-mustard', Math.floor(0.56*GW), Math.floor(0.73*GH), Math.floor(0.15*GW), Math.floor(0.15*GH), () => {
+    sayAs('Mustard Napkin', "Just a napkin. Smells like detergent. Useless.");
+  });
+
+  // water pitcher: on table center
+  addHotspot('pitcher', Math.floor(0.51*GW), Math.floor(0.53*GH), Math.floor(0.05*GW), Math.floor(0.12*GH), () => {
+    sayAs('Pitcher', "There's something in the water. No wait, that's just my reflection. Hello, beautiful.");
+  });
+
+  // matryoshka dolls: on cabinet top center
+  addHotspot('matryoshka', Math.floor(0.44*GW), Math.floor(0.245*GH), Math.floor(0.12*GW), Math.floor(0.06*GH), () => {
+    if (STATE.selectedItem) { sayAs('Matryoshka Dolls', "I don't think that goes on a doll."); return; }
+    if (!hasItem('scrap')) {
+      addItem('scrap');
+      sayAs('Matryoshka Dolls', "A clue. Penny wrote a clue. This is either adorable or deeply passive-aggressive.");
+    } else {
+      sayAs('Matryoshka Dolls', "The dolls are already opened. The clue is in my inventory.");
+    }
+  });
+
+  // Juno portrait (left dog portrait above cabinet)
+  addHotspot('portrait-juno', Math.floor(0.395*GW), Math.floor(0.1*GH), Math.floor(0.09*GW), Math.floor(0.13*GH), () => {
+    sayAs('Portrait', "That's me. I look distinguished. Also slightly hungry, which is accurate.");
+  });
+
+  // Penny portrait (right dog portrait above cabinet)
+  addHotspot('portrait-penny', Math.floor(0.515*GW), Math.floor(0.1*GH), Math.floor(0.09*GW), Math.floor(0.13*GH), () => {
+    if (STATE.pennyPortraitSwung) {
+      sayAs('Portrait', "I already found it. The portrait will never be the same.");
+      return;
+    }
+    if (!hasItem('scrap')) {
+      sayAs('Portrait', "A portrait of Penny. She looks smug even in oil paint.");
+      return;
+    }
+    STATE.pennyPortraitSwung = true;
+    if (!STATE.treat2Found) {
+      STATE.treat2Found = true;
+      findTreat(1, "Hidden BEHIND my portrait. Oh, that's very clever, Penny. I hate it.", 'Portrait');
+    }
+  });
+
+  // Cabinet drawer (lower section of cabinet)
+  addHotspot('cabinet-drawer', Math.floor(0.36*GW), Math.floor(0.31*GH), Math.floor(0.09*GW), Math.floor(0.1*GH), () => {
+    if (STATE.dresserDrawerOpen) {
+      sayAs('Cabinet Drawer', "The drawer is already open. The treat has been claimed.");
+      return;
+    }
+    if (STATE.selectedItem === 'duckSlip') {
+      sayAs('Cabinet Drawer', "Yes. The numbers. Let me try the combination.");
+      openCombo();
+    } else if (hasItem('duckSlip')) {
+      sayAs('Cabinet Drawer', "The Duck Slip! I should select it from my inventory and use it on the drawer.");
+    } else {
+      sayAs('Cabinet Drawer', "There's a combination dial. Three numbers. I don't know the numbers. Yet.");
+    }
+  });
+
+  // Cabinet doors (upper cabinet body)
+  addHotspot('cabinet-doors', Math.floor(0.45*GW), Math.floor(0.31*GH), Math.floor(0.17*GW), Math.floor(0.1*GH), () => {
+    sayAs('Cabinet', "Cabinet doors. Locked. The drawers are below.");
+  });
+
+  // Cactus on cabinet top
+  addHotspot('cactus', Math.floor(0.575*GW), Math.floor(0.245*GH), Math.floor(0.04*GW), Math.floor(0.06*GH), () => {
+    sayAs('Cactus', "Ouch. No treat is worth that. ...Actually all treats are worth that, but there's nothing here.");
+  });
+
+  // Aloe plant (left side windowsill)
+  addHotspot('aloe-plant', Math.floor(0.13*GW), Math.floor(0.45*GH), Math.floor(0.04*GW), Math.floor(0.13*GH), () => {
+    if (STATE.selectedItem) { sayAs('Aloe Plant', "I can't use that on a plant. Probably."); return; }
+    if (!hasItem('plantTag')) {
+      addItem('plantTag');
+      sayAs('Aloe Plant', "There's a tag on this plant. It says 'POSY knows.' I don't know what that means but I will find out.");
+    } else {
+      sayAs('Aloe Plant', "I already took the tag. The aloe is just staring at me now.");
+    }
+  });
+
+  // Birdcage lamp (left of window)
+  addHotspot('birdcage', Math.floor(0.28*GW), Math.floor(0.19*GH), Math.floor(0.05*GW), Math.floor(0.1*GH), () => {
+    sayAs('Birdcage Lamp', "A cage with no birds. Very mysterious. Also: no treats.");
+  });
+
+  // Doorway (right side)
+  addHotspot('doorway-right', Math.floor(0.86*GW), Math.floor(0.20*GH), Math.floor(0.14*GW), Math.floor(0.55*GH), () => {
+    sayAs('Doorway', "The next room. Penny's web of deception spreads.");
+    setTimeout(() => startFade('living'), 1200);
+  });
+}
+
+function setupLivingHotspots() {
+  clearHotspots();
+
+  // ============================================================
+  // LIVING ROOM HOTSPOT COORDINATES
+  // Each addHotspot call: (id, x, y, w, h, handler)
+  // x/y/w/h are in pixels (canvas is 1280x720)
+  // To adjust: change the decimal fractions (0.0 to 1.0)
+  // x fraction * 1280 = pixels from left
+  // y fraction * 720 = pixels from top
+  // ============================================================
+
+  // POSY quilt (back wall center)
+  addHotspot('quilt', Math.floor(0.395*GW), Math.floor(0.07*GH), Math.floor(0.194*GW), Math.floor(0.35*GH), () => {
+    if (STATE.selectedItem) { sayAs('Quilt', "I don't think you use that on a quilt."); return; }
+    if (!STATE.treat4Found) {
+      if (!hasItem('plantTag')) {
+        // Plant tag not yet found — no hint about POSY yet
+        sayAs('Quilt', "A handmade quilt. Beautiful stitching. The word 'POSY' is on it. I wonder what that means.");
+      } else {
+        // Has the tag — one click finds the treat immediately
+        STATE.quiltPocketFound = true;
+        STATE.treat4Found = true;
+        findTreat(3, "The tag said 'POSY knows' — there's a pocket stitched right into the border. She HAND-CRAFTED a hiding spot. I am furious with admiration.", 'Quilt');
+      }
+    } else {
+      sayAs('Quilt', "The pocket has been found. The quilt keeps its other secrets.");
+    }
+  });
+
+  // Sofa Main — pixel coords
+  addHotspot('sofa-main', 560, 330, 160, 110, () => {
+    sayAs('Sofa', "A large, comfortable sofa. It smells like people. I love people.");
+  });
+
+
+
+
+  // Sofa chaise (right extension of sofa) — fraction coords
+  addHotspot('sofa-chaise', Math.floor(0.58*GW), Math.floor(0.58*GH), Math.floor(0.21*GW), Math.floor(0.17*GH), () => {
+    if (!STATE.treat5Found) {
+      STATE.treat5Found = true;
+      findTreat(4, "Under the cushion. CLASSIC. She thinks I don't know about under the cushion. I ALWAYS check under the cushion.", 'Sofa');
+    } else {
+      sayAs('Sofa', "I already checked. Good instincts though. I would check again.");
+    }
+  });
+
+  // Tropical pillow (on sofa center) — fraction coords
+  addHotspot('tropical-pillow', Math.floor(0.58*GW), Math.floor(0.50*GH), Math.floor(0.1*GW), Math.floor(0.075*GH), () => {
+    sayAs('Tropical Pillow', "Leaves on a pillow. The concept of outside, but inside. No treat.");
+  });
+
+
+
+  // Calathea plant (on coffee table)
+  addHotspot('calathea', Math.floor(0.34*GW), Math.floor(0.44*GH), Math.floor(0.09*GW), Math.floor(0.18*GH), () => {
+    if (STATE.selectedItem) { sayAs('Calathea Plant', "I can't really use that on a plant. Can I?"); return; }
+    if (!hasItem('calatheaNote')) {
+      addItem('calatheaNote');
+      sayAs('Calathea Plant', "A note under the plant pot. 'The duck on the right shelf has a secret base.' Penny is a criminal mastermind.");
+    } else {
+      sayAs('Calathea Plant', "I already checked the pot. The note is in my inventory.");
+    }
+  });
+
+  // Coffee table (general)
+  addHotspot('coffee-table', Math.floor(0.3*GW), Math.floor(0.63*GH), Math.floor(0.17*GW), Math.floor(0.1*GH), () => {
+    sayAs('Coffee Table', "A round wire coffee table. Very stylish. Also: no treats.");
+  });
+
+  // Rattan pouf (treat 6 — final)
+  addHotspot('pouf', Math.floor(0.6*GW), Math.floor(0.76*GH), Math.floor(0.2*GW), Math.floor(0.19*GH), () => {
+    if (!STATE.treat6Found) {
+      STATE.pouфMoved = true;
+      STATE.treat6Found = true;
+      findTreat(5, "...Under the pouf. On the floor. In plain sight. I sat next to this for ten minutes. ...I found it. That's what matters.", 'Rattan Pouf');
+    } else {
+      sayAs('Rattan Pouf', "The pouf has been thoroughly investigated. Victory achieved.");
+    }
+  });
+
+  // Right shelf - ducks (middle of right leaning shelf)
+  addHotspot('ducks-right', Math.floor(0.8*GW), Math.floor(0.29*GH), Math.floor(0.07*GW), Math.floor(0.04*GH), () => {
+    sayAs('Ceramic Ducks', "Ceramic ducks. Decorative. Silent. They know nothing... probably.");
+  });
+
+  // Right shelf - special duck (rightmost)
+  addHotspot('duck-special', Math.floor(0.76*GW), Math.floor(0.25*GH), Math.floor(0.04*GW), Math.floor(0.08*GH), () => {
+    if (STATE.selectedItem) { sayAs('Ceramic Duck', "I don't think that opens the duck. I should just click it."); return; }
+    if (!STATE.duckOpened) {
+      STATE.duckOpened = true;
+      addItem('duckSlip');
+      sayAs('Ceramic Duck', "This duck has a false bottom. Who makes a duck with a false bottom? Penny, apparently.");
+    } else {
+      sayAs('Ceramic Duck', "The duck is already open. The secret has been extracted.");
+    }
+  });
+
+
+  // Right shelf - orchid (top of right leaning shelf)
+  addHotspot('orchid', Math.floor(0.77*GW), Math.floor(0.14*GH), Math.floor(0.04*GW), Math.floor(0.1*GH), () => {
+    sayAs('Orchid', "A white orchid. It has no smell. Orchids are a scam.");
+  });
+
+  // Left shelf - gold disc / Portrait (top of left leaning shelf)
+  // Keep right and top edge, half the width
+  addHotspot('gold-object', Math.floor(0.14*GW), Math.floor(0.17*GH), Math.floor(0.07*GW), Math.floor(0.08*GH), () => {
+    sayAs('Portrait', "Round. Shiny. Smells like nothing. Not edible.");
+  });
+
+  // Left shelf - crystals (middle of left leaning shelf)
+  addHotspot('crystals', Math.floor(0.13*GW), Math.floor(0.31*GH), Math.floor(0.11*GW), Math.floor(0.03*GH), () => {
+    sayAs('Crystals', "Rocks. Pretty rocks. Not treats.");
+  });
+
+  // Left shelf - photo (lower left leaning shelf)
+  addHotspot('photo', Math.floor(0.19*GW), Math.floor(0.44*GH), Math.floor(0.05*GW), Math.floor(0.075*GH), () => {
+    sayAs('Family Photo', "A family photo. They look happy. Also: no treats visible.");
+  });
+
+  // Paper lantern lamp (far right)
+  addHotspot('lantern', Math.floor(0.9*GW), Math.floor(0.22*GH), Math.floor(0.09*GW), Math.floor(0.1*GH), () => {
+    sayAs('Paper Lantern', "A paper lamp. Warm light. Penny would never hide a treat somewhere this nice.");
+  });
+
+  // Floral armchair (bottom left)
+  addHotspot('armchair', 0, Math.floor(0.7*GH), Math.floor(0.16*GW), Math.floor(0.28*GH), () => {
+    sayAs('Armchair', "An armchair with flowers on it. It smells like old books and safety. No treat though.");
+  });
+
+  // Doorway (left side, implied)
+  addHotspot('doorway-left', Math.floor(0.02*GW), Math.floor(0.40*GH), Math.floor(0.07*GW), Math.floor(0.20*GH), () => {
+    sayAs('Doorway', "Back to the dining room. Let me review my findings.");
+    setTimeout(() => startFade('dining'), 1200);
+  });
+}
+
+function setupEndHotspots() {
+  clearHotspots();
+  // Play again button
+  addHotspot('play-again', GW/2-110, 596, 220, 48, () => {
+    resetGame();
+  });
+}
+
+// ============================================================
+// GAME RESET
+// ============================================================
+function resetGame() {
+  STATE.scene = 'title';
+  STATE.treats = [false,false,false,false,false,false];
+  STATE.inventory = [];
+  STATE.selectedItem = null;
+  STATE.narration = null;
+  STATE.narrationQueue = [];
+  STATE.fadeAlpha = 0;
+  STATE.fading = false;
+  STATE.fadeDir = 0;
+  STATE.fadeTarget = null;
+  STATE.dresserDrawerOpen = false;
+  STATE.pennyPortraitSwung = false;
+  STATE.quiltPocketFound = false;
+  STATE.quiltExamined = false;
+  STATE.duckOpened = false;
+  STATE.pouфMoved = false;
+  STATE.comboDigits = [0,0,0];
+  STATE.treat1Found = false; STATE.treat2Found = false; STATE.treat3Found = false;
+  STATE.treat4Found = false; STATE.treat5Found = false; STATE.treat6Found = false;
+  STATE.pennyClicks = 0;
+  clearHotspots();
+  updateDialogueBox();
+  updateTreatBones();
+  updateInventorySidebar();
+  document.getElementById('combo-panel').style.display = 'none';
+  document.getElementById('item-popup').style.display = 'none';
+}
+
+// ============================================================
+// CURSOR
+// ============================================================
+// ============================================================
+// DEBUG: HOTSPOT VISUALISER
+// Draws all active hotspot rectangles with ID labels.
+// Toggle with the "Show Hotspots" checkbox above the canvas.
+// ============================================================
+function drawHotspotDebug() {
+  const colors = ['#FF4040','#40FF40','#4080FF','#FFD040','#FF40FF','#40FFFF'];
+  hotspots.forEach((hs, i) => {
+    if (hs.id === 'narration') return; // skip UI hotspot
+    const c = colors[i % colors.length];
+    ctx.strokeStyle = c;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 3]);
+    ctx.strokeRect(hs.x + 1, hs.y + 1, hs.w - 2, hs.h - 2);
+    ctx.setLineDash([]);
+    // Label in top-left corner of the box
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(hs.x + 2, hs.y + 2, hs.id.length * 7 + 4, 14);
+    ctx.fillStyle = c;
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(hs.id, hs.x + 4, hs.y + 13);
+  });
+}
+
+// Note cursor data URL — small paper/note icon (20x24px SVG)
+const NOTE_CURSOR = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='24'%3E%3Crect x='2' y='1' width='14' height='19' rx='1' fill='%23FFF8E8' stroke='%23444' stroke-width='1.5'/%3E%3Crect x='5' y='1' width='5' height='3' rx='1' fill='%23888'/%3E%3Cline x1='5' y1='8' x2='13' y2='8' stroke='%23888' stroke-width='1'/%3E%3Cline x1='5' y1='11' x2='13' y2='11' stroke='%23888' stroke-width='1'/%3E%3Cline x1='5' y1='14' x2='10' y2='14' stroke='%23888' stroke-width='1'/%3E%3C/svg%3E\") 9 2, copy";
+
+function updateCursor(gx, gy) {
+  if (STATE.scene === 'title' || STATE.scene === 'end') {
+    canvas.style.cursor = 'pointer';
+    return;
+  }
+  if (STATE.selectedItem) {
+    canvas.style.cursor = NOTE_CURSOR;
+    return;
+  }
+  const hit = hitTest(gx, gy);
+  canvas.style.cursor = hit ? 'pointer' : 'default';
+}
+
+// ============================================================
+// MAIN LOOP
+// ============================================================
+function gameLoop() {
+  STATE.tick++;
+  STATE.animFrame = Math.floor(STATE.tick / 20) % 2;
+
+  updateFade();
+
+  ctx.clearRect(0, 0, W, H);
+
+  // If images failed to load, show error and stop
+  if (imageLoadError) {
+    drawImageError();
+    requestAnimationFrame(gameLoop);
+    return;
+  }
+
+  // Draw current scene
+  switch(STATE.scene) {
+    case 'title':
+      drawTitleScreen();
+      break;
+    case 'dining':
+      drawDiningRoom();
+      break;
+    case 'living':
+      drawLivingRoom();
+      break;
+    case 'end':
+      drawEndScreen();
+      setupEndHotspots();
+      break;
+  }
+
+
+  // Pixel size indicator (shows briefly after [ or ] keypress)
+  drawPixelSizeIndicator();
+
+  // Fade overlay
+  if (STATE.fadeAlpha > 0) {
+    ctx.fillStyle = `rgba(0,0,0,${STATE.fadeAlpha})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+
+// ============================================================
+// INPUT HANDLING
+// Mouse coordinates must be scaled from CSS pixels (880x495)
+// back to internal canvas coordinates (1280x720).
+// Scale factor: canvas.width / canvas.getBoundingClientRect().width
+// ============================================================
+canvas.addEventListener('click', (e) => {
+  if (STATE.fading && STATE.fadeAlpha > 0.3) return;
+  if (comboOpen) return;
+
+  const rect = canvas.getBoundingClientRect();
+  // Scale mouse position to internal canvas coordinates
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const gx = Math.floor((e.clientX - rect.left) * scaleX);
+  const gy = Math.floor((e.clientY - rect.top) * scaleY);
+
+  if (STATE.scene === 'title') {
+    startFade('dining');
+    return;
+  }
+
+  if (STATE.scene === 'end') {
+    const hit = hitTest(gx, gy);
+    if (hit) hit.onClick();
+    return;
+  }
+
+  // Check hotspots (inventory is now in the sidebar, not the canvas)
+  const hit = hitTest(gx, gy);
+  if (hit) {
+    hit.onClick();
+  } else {
+    // Clicking empty canvas space dismisses narration if active
+    if (STATE.narration) dismissNarration();
+  }
+});
+
+canvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  STATE.selectedItem = null;
+  updateInventorySidebar();
+  hideItemPopup();
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (STATE.fading) return;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const gx = Math.floor((e.clientX - rect.left) * scaleX);
+  const gy = Math.floor((e.clientY - rect.top) * scaleY);
+  updateCursor(gx, gy);
+  // hoveredHotspot tracking removed — no hover highlight drawn
+});
+
+// ============================================================
+// KEYBOARD INPUT
+// [ decreases pixel size (sharper), ] increases (chunkier)
+// ============================================================
+document.addEventListener('keydown', (e) => {
+  if (e.key === '[') {
+    STATE.pixelSize = Math.max(2, STATE.pixelSize - 1);
+    showPixelSizeMsg();
+  } else if (e.key === ']') {
+    STATE.pixelSize = Math.min(8, STATE.pixelSize + 1);
+    showPixelSizeMsg();
+  }
+});
+
+// ============================================================
+// SCENE ENTRY — set up hotspots when scene changes
+// ============================================================
+let lastScene = null;
+function checkSceneChange() {
+  if (STATE.scene !== lastScene) {
+    lastScene = STATE.scene;
+    if (STATE.scene === 'dining') setupDiningHotspots();
+    else if (STATE.scene === 'living') setupLivingHotspots();
+    else if (STATE.scene === 'end') setupEndHotspots();
+  }
+  requestAnimationFrame(checkSceneChange);
+}
+
+// ============================================================
+// STARTUP
+// Load both room photos before starting the game loop.
+// Draw sidebar portraits immediately (no images needed).
+// ============================================================
+
+// Draw a simple loading screen while images load
+function drawLoadingScreen() {
+  ctx.fillStyle = '#1A0A04';
+  ctx.fillRect(0, 0, GW, GH);
+  ctx.fillStyle = '#C8956C';
+  ctx.font = 'bold 28px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('Loading room photos...', GW/2, GH/2);
+  ctx.font = '18px monospace';
+  ctx.fillStyle = '#7A5230';
+  ctx.fillText('(dining-room.JPG and living-room.JPG)', GW/2, GH/2 + 36);
+  ctx.textAlign = 'left';
+}
+
+// Show loading screen immediately
+drawLoadingScreen();
+
+// Draw sidebar character portraits (pure pixel art, no photos needed)
+drawSidebarPortraits();
+
+// Initialize sidebar bone icons to unfound state
+updateTreatBones();
+
+// Initialize inventory (empty)
+updateInventorySidebar();
+
+// Start loading photos, then kick off the game
+loadRoomPhotos()
+  .then(() => {
+    // Both images loaded — start everything
+    checkSceneChange();
+    gameLoop();
+  })
+  .catch((err) => {
+    // Images failed — mark the error flag and still start the loop
+    imageLoadError = true;
+    checkSceneChange();
+    gameLoop();
+  });
+</script>
+</body>
+</html>

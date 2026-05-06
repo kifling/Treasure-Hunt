@@ -1287,7 +1287,7 @@ function drawDiningRoom() {
   const doorX = Math.floor(0.88 * GW);
   const doorY = Math.floor(0.42 * GH);
   ctx.fillStyle = 'rgba(0,0,0,0.45)';
-  ctx.fillRect(doorX - 8, doorY - 22, 80, 52);
+  ctx.fillRect(doorX - 8, doorY - 22, Math.floor(0.07 * GW), Math.floor(0.20 * GH));
   pxText("→", doorX + 12, doorY + 14, '#F0E8D8', 16, 'center');
   pxText("LIVING", doorX + 12, doorY + 30, '#C8C8C8', 6, 'center');
   pxText("ROOM", doorX + 12, doorY + 44, '#C8C8C8', 6, 'center');
@@ -1306,7 +1306,7 @@ function drawLivingRoom() {
 
   // === DOORWAY NAVIGATION HINT (left side) ===
   const dwX = Math.floor(0.02 * GW);
-  const dwY = Math.floor(0.40 * GH);
+  const dwY = Math.floor(0.42 * GH);
   ctx.fillStyle = 'rgba(0,0,0,0.50)';
   ctx.fillRect(dwX, dwY, Math.floor(0.07 * GW), Math.floor(0.20 * GH));
   pxText("←", dwX + 38, dwY + 68, '#F0E8D8', 16, 'center');

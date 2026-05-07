@@ -509,6 +509,7 @@ const STATE = {
   fadeTarget: null,      // scene to go to after fade
   animFrame: 0,
   tick: 0,
+  hoveredHotspot: null,  // hotspot currently under cursor
   // puzzle state
   dresserDrawerOpen: false,
   pennyPortraitSwung: false,
@@ -1258,14 +1259,41 @@ function drawTitleScreen() {
   pxText("A VERY IMPORTANT EASTER MISSION", 640, 136, '#E8C9A0', 12, 'center');
   pxText("by Penny (supervised by Juno)", 640, 156, '#C8956C', 10, 'center');
 
-  // Click to start
+  // Instructions panel — full-width strip across the bottom
+  ctx.fillStyle = 'rgba(0,0,0,0.70)';
+  ctx.fillRect(0, 590, GW, 130);
+  ctx.strokeStyle = '#3A3A5A';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0, 591, GW, 128);
+
+  pxText("HOW TO PLAY", GW/2, 612, '#FFD080', 10, 'center');
+
+  // Two columns of tips
+  const col1 = [
+    "🐾  Click objects to examine them",
+    "🎒  Clues are saved to your inventory",
+  ];
+  const col2 = [
+    "🏠  Use the arrows to change rooms",
+    "🦴  Find all 6 hidden treats to win",
+  ];
+  ctx.font = 'bold 15px monospace';
+  ctx.fillStyle = '#C8C8D8';
+  col1.forEach((line, i) => {
+    ctx.textAlign = 'left';
+    ctx.fillText(line, 80, 642 + i * 30);
+  });
+  col2.forEach((line, i) => {
+    ctx.textAlign = 'left';
+    ctx.fillText(line, 700, 642 + i * 30);
+  });
+  ctx.textAlign = 'left';
+
+  // Click to start — sits just above the instructions panel
   const blink = Math.floor(STATE.tick / 30) % 2 === 0;
   if (blink) {
-    pxText("[ CLICK ANYWHERE TO BEGIN ]", 640, 600, '#FFFFFF', 12, 'center');
+    pxText("[ CLICK ANYWHERE TO BEGIN ]", GW/2, 568, '#FFFFFF', 12, 'center');
   }
-
-  // Controls reminder
-  pxText("Click objects to examine  |  Find all 6 treats", 640, 680, '#8A8A9A', 8, 'center');
 }
 
 // ============================================================
@@ -1368,20 +1396,20 @@ function drawEndScreen() {
     px(tx+24, ty+12, 6, 6, c1);
   });
 
-  // Juno sitting proudly
-  drawJunoSprite(560, 524, 6);
+  // Juno sitting proudly — feet land on grass line (cy+60 = 530)
+  drawJunoSprite(560, 470, 6);
 
-  // Penny in background (slightly smaller, slightly less smug)
-  drawPennySprite(720, 524, 5);
+  // Penny in background (slightly smaller, slightly less smug) — feet land on grass line (cy+30 = 530)
+  drawPennySprite(720, 500, 5);
 
   px(720, 488, 40, 16, '#8FAF8A');
   px(716, 496, 10, 4, '#F0E8D8');
 
-  // Title
-  pxText("JUNO WINS EASTER", GW/2, 160, '#1A0A00', 24, 'center');
-  pxText("JUNO WINS EASTER", GW/2-2, 158, '#FFD080', 24, 'center');
+  // Title — high up in the sky
+  pxText("JUNO WINS EASTER", GW/2, 42, '#1A0A00', 24, 'center');
+  pxText("JUNO WINS EASTER", GW/2-2, 40, '#FFD080', 24, 'center');
 
-  // Final narration (wrapped)
+  // Final narration (wrapped) — tight below the title
   const narr = "Six treats. All found. Penny hid them well, but she forgot one crucial thing: I am a dog, and finding food is literally the only thing I was built to do. I win Easter.";
   const words = narr.split(' ');
   let lines = [];
@@ -1398,17 +1426,16 @@ function drawEndScreen() {
   });
   if (cur) lines.push(cur);
 
-  px(120, 190, 1040, lines.length*24+24, '#1A0A04');
-  pxBorder(120, 190, 1040, lines.length*24+24, '#7A5230', 2);
+  px(120, 58, 1040, lines.length*24+24, '#1A0A04');
   lines.forEach((line, i) => {
-    pxText(line, GW/2, 208 + i*24, '#E8C9A0', 10, 'center');
+    pxText(line, GW/2, 76 + i*24, '#E8C9A0', 10, 'center');
   });
 
-  // Treat counter complete
-  pxText("ALL 6 TREATS FOUND!", GW/2, 440, '#FFD080', 14, 'center');
+  // Treat counter — clearly below dogs' feet (paws end at y=530)
+  pxText("ALL 6 TREATS FOUND!", GW/2, 592, '#FFD080', 14, 'center');
   for (let i = 0; i < 6; i++) {
     const bx = GW/2 - 70 + i*24;
-    const by = 452;
+    const by = 607;
     px(bx, by, 16, 8, '#FFD080');
     px(bx-2, by, 6, 6, '#FFB040');
     px(bx+12, by, 6, 6, '#FFB040');
@@ -1417,7 +1444,7 @@ function drawEndScreen() {
   }
 
   // Play again button
-  const btnX = GW/2 - 110, btnY = 600;
+  const btnX = GW/2 - 110, btnY = 650;
   px(btnX, btnY, 220, 40, '#3A1808');
   pxBorder(btnX, btnY, 220, 40, '#FFD080', 2);
   pxText("[ PLAY AGAIN ]", GW/2, btnY+26, '#FFD080', 12, 'center');
@@ -1536,7 +1563,7 @@ function setupDiningHotspots() {
   });
 
   // Doorway (right side)
-  addHotspot('doorway-right', Math.floor(0.86*GW), Math.floor(0.20*GH), Math.floor(0.14*GW), Math.floor(0.55*GH), () => {
+  addHotspot('doorway-right', Math.floor(0.88*GW) - 8, Math.floor(0.42*GH) - 22, Math.floor(0.07*GW), Math.floor(0.20*GH), () => {
     sayAs('Doorway', "The next room. Penny's web of deception spreads.");
     setTimeout(() => startFade('living'), 1200);
   });
@@ -1800,6 +1827,16 @@ function gameLoop() {
   }
 
 
+  // Subtle hover glow over active hotspot
+  const hs = STATE.hoveredHotspot;
+  if (hs && hs.id !== 'narration' && (STATE.scene === 'dining' || STATE.scene === 'living')) {
+    ctx.save();
+    ctx.filter = 'blur(12px)';
+    ctx.fillStyle = 'rgba(255, 220, 120, 0.18)';
+    ctx.fillRect(hs.x, hs.y, hs.w, hs.h);
+    ctx.restore();
+  }
+
   // Pixel size indicator (shows briefly after [ or ] keypress)
   drawPixelSizeIndicator();
 
@@ -1865,7 +1902,7 @@ canvas.addEventListener('mousemove', (e) => {
   const gx = Math.floor((e.clientX - rect.left) * scaleX);
   const gy = Math.floor((e.clientY - rect.top) * scaleY);
   updateCursor(gx, gy);
-  // hoveredHotspot tracking removed — no hover highlight drawn
+  STATE.hoveredHotspot = hitTest(gx, gy) || null;
 });
 
 // ============================================================
